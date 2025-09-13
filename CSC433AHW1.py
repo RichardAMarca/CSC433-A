@@ -1,6 +1,7 @@
 import hashlib
 import os
 import json
+import time
 
 def calculate_file_hash(filepath):
     """Calculates the SHA256 hash of a file."""
@@ -51,23 +52,55 @@ def check_integrity(baseline_file="baseline.json"):
     if not violations_found:
         print("No integrity violations detected.")
 
+# First new feature: Monitor log files for new detections
+LOG_DIR = "samplelogs"
+LOG_HISTORY_FILE = "log_history.json"
+
+def get_log_files(log_dir=LOG_DIR):
+    """Returns a sorted list of log files in the directory."""
+    if not os.path.exists(log_dir):
+        return []
+    return sorted([f for f in os.listdir(log_dir) if f.endswith('.txt')])
+
+def inform_new_log_files(prev_files, log_dir=LOG_DIR):
+    """Informs the user if new log files have been detected."""
+    current_files = get_log_files(log_dir)
+    new_files = set(current_files) - set(prev_files)
+    if new_files:
+        print(f"New log files detected: {', '.join(new_files)}")
+    return current_files
+
+def parse_hashes_from_logs(log_dir=LOG_DIR):
+    """Parses all detected hashes from log files in the directory."""
+    hash_counts = {}
+    for log_file in get_log_files(log_dir):
+        with open(os.path.join(log_dir, log_file), 'r') as f:
+            for line in f:
+                if "Detected hash:" in line:
+                    hash_val = line.strip().split("Detected hash:")[-1].strip()
+                    hash_counts[hash_val] = hash_counts.get(hash_val, 0) + 1
+    return hash_counts
+
+# Second new feature: Detect replicated hashes
+def detect_replicated_hashes(hash_counts):
+    """Identifies hashes that have been replicated before."""
+    for hash_val, count in hash_counts.items():
+        if count > 1:
+            print(f"WARNING: Hash {hash_val} has been detected {count} times. Possible spoofing or imitation.")
+
+def monitor_logs_and_hashes():
+    """Monitors for new log files and checks for repeated hashes every 5 seconds."""
+    print("Monitoring log files for new detections and repeated hashes...")
+    prev_files = get_log_files()
+    while True:
+        time.sleep(5)  # Check every 5 seconds
+        prev_files = inform_new_log_files(prev_files)
+        hash_counts = parse_hashes_from_logs()
+        detect_replicated_hashes(hash_counts)
+        print("---")
+
 # Usage example:
 # monitored_items = ["/path/to/important_file.txt", "/path/to/sensitive_directory"]
+# monitor_logs_and_hashes()
 # create_baseline(monitored_items)
 # check_integrity()
-# Input data
-
-data_to_hash = "Hello, Python SHA384!"
-
-# Create a SHA384 hash object
-sha384_hasher = hashlib.sha384()
-
-# Update the hash object with the encoded data
-sha384_hasher.update(data_to_hash.encode('utf-8'))
-
-# Get the hexadecimal representation of the hash
-sha384_result = sha384_hasher.hexdigest()
-
-# Print the result
-print(f"Original Data: {data_to_hash}")
-print(f"SHA384 Hash: {sha384_result}") 
